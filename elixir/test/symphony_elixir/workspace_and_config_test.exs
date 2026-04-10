@@ -1299,4 +1299,64 @@ defmodule SymphonyElixir.WorkspaceAndConfigTest do
       File.rm_rf(test_root)
     end
   end
+
+  describe "worker mode" do
+    test "defaults to live mode when not set in workflow or env" do
+      previous = System.get_env("WORKER_MODE")
+
+      try do
+        System.delete_env("WORKER_MODE")
+        write_workflow_file!(Workflow.workflow_file_path())
+
+        assert Config.settings!().worker.mode == "live"
+      after
+        restore_env("WORKER_MODE", previous)
+      end
+    end
+
+    test "reads simulate from WORKFLOW.md worker.mode" do
+      write_workflow_file!(Workflow.workflow_file_path(), worker_mode: "simulate")
+
+      assert Config.settings!().worker.mode == "simulate"
+    end
+
+    test "reads live from WORKFLOW.md worker.mode" do
+      write_workflow_file!(Workflow.workflow_file_path(), worker_mode: "live")
+
+      assert Config.settings!().worker.mode == "live"
+    end
+
+    test "falls back to WORKER_MODE env var when not set in workflow" do
+      previous = System.get_env("WORKER_MODE")
+
+      try do
+        System.put_env("WORKER_MODE", "simulate")
+        write_workflow_file!(Workflow.workflow_file_path())
+
+        assert Config.settings!().worker.mode == "simulate"
+      after
+        restore_env("WORKER_MODE", previous)
+      end
+    end
+
+    test "WORKFLOW.md worker.mode takes precedence over WORKER_MODE env var" do
+      previous = System.get_env("WORKER_MODE")
+
+      try do
+        System.put_env("WORKER_MODE", "live")
+        write_workflow_file!(Workflow.workflow_file_path(), worker_mode: "simulate")
+
+        assert Config.settings!().worker.mode == "simulate"
+      after
+        restore_env("WORKER_MODE", previous)
+      end
+    end
+
+    test "rejects invalid worker mode values" do
+      assert {:error, {:invalid_workflow_config, message}} =
+               Schema.parse(%{"worker" => %{"mode" => "invalid"}})
+
+      assert message =~ "mode"
+    end
+  end
 end

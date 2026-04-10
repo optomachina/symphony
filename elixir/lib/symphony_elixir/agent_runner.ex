@@ -11,18 +11,25 @@ defmodule SymphonyElixir.AgentRunner do
 
   @spec run(map(), pid() | nil, keyword()) :: :ok | no_return()
   def run(issue, codex_update_recipient \\ nil, opts \\ []) do
-    # The orchestrator owns host retries so one worker lifetime never hops machines.
-    worker_host = selected_worker_host(Keyword.get(opts, :worker_host), Config.settings!().worker.ssh_hosts)
+    worker_settings = Config.settings!().worker
 
-    Logger.info("Starting agent run for #{issue_context(issue)} worker_host=#{worker_host_for_log(worker_host)}")
+    if worker_settings.mode == "simulate" do
+      Logger.info("Simulate mode: skipping agent run for #{issue_context(issue)}")
+      :ok
+    else
+      # The orchestrator owns host retries so one worker lifetime never hops machines.
+      worker_host = selected_worker_host(Keyword.get(opts, :worker_host), worker_settings.ssh_hosts)
 
-    case run_on_worker_host(issue, codex_update_recipient, opts, worker_host) do
-      :ok ->
-        :ok
+      Logger.info("Starting agent run for #{issue_context(issue)} worker_host=#{worker_host_for_log(worker_host)}")
 
-      {:error, reason} ->
-        Logger.error("Agent run failed for #{issue_context(issue)}: #{inspect(reason)}")
-        raise RuntimeError, "Agent run failed for #{issue_context(issue)}: #{inspect(reason)}"
+      case run_on_worker_host(issue, codex_update_recipient, opts, worker_host) do
+        :ok ->
+          :ok
+
+        {:error, reason} ->
+          Logger.error("Agent run failed for #{issue_context(issue)}: #{inspect(reason)}")
+          raise RuntimeError, "Agent run failed for #{issue_context(issue)}: #{inspect(reason)}"
+      end
     end
   end
 

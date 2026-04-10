@@ -109,13 +109,15 @@ defmodule SymphonyElixir.Config.Schema do
     embedded_schema do
       field(:ssh_hosts, {:array, :string}, default: [])
       field(:max_concurrent_agents_per_host, :integer)
+      field(:mode, :string)
     end
 
     @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
     def changeset(schema, attrs) do
       schema
-      |> cast(attrs, [:ssh_hosts, :max_concurrent_agents_per_host], empty_values: [])
+      |> cast(attrs, [:ssh_hosts, :max_concurrent_agents_per_host, :mode], empty_values: [])
       |> validate_number(:max_concurrent_agents_per_host, greater_than: 0)
+      |> validate_inclusion(:mode, ~w[live simulate], message: "must be \"live\" or \"simulate\"")
     end
   end
 
@@ -383,7 +385,12 @@ defmodule SymphonyElixir.Config.Schema do
         turn_sandbox_policy: normalize_optional_map(settings.codex.turn_sandbox_policy)
     }
 
-    %{settings | tracker: tracker, workspace: workspace, codex: codex}
+    worker = %{
+      settings.worker
+      | mode: resolve_worker_mode(settings.worker.mode, System.get_env("WORKER_MODE"))
+    }
+
+    %{settings | tracker: tracker, workspace: workspace, codex: codex, worker: worker}
   end
 
   defp normalize_keys(value) when is_map(value) do
@@ -478,6 +485,14 @@ defmodule SymphonyElixir.Config.Schema do
   end
 
   defp normalize_secret_value(_value), do: nil
+
+  defp resolve_worker_mode(config_mode, _env_mode) when config_mode in ["live", "simulate"],
+    do: config_mode
+
+  defp resolve_worker_mode(_config_mode, env_mode) when env_mode in ["live", "simulate"],
+    do: env_mode
+
+  defp resolve_worker_mode(_config_mode, _env_mode), do: "live"
 
   defp default_turn_sandbox_policy(workspace) do
     %{

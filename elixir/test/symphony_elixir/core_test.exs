@@ -1816,4 +1816,37 @@ defmodule SymphonyElixir.CoreTest do
       File.rm_rf(test_root)
     end
   end
+
+  test "agent runner skips codex execution in simulate mode" do
+    workspace_root =
+      Path.join(
+        System.tmp_dir!(),
+        "symphony-elixir-simulate-#{System.unique_integer([:positive])}"
+      )
+
+    try do
+      File.mkdir_p!(workspace_root)
+
+      write_workflow_file!(Workflow.workflow_file_path(),
+        workspace_root: workspace_root,
+        worker_mode: "simulate"
+      )
+
+      issue = %Issue{
+        identifier: "S-SIM",
+        title: "Simulate test",
+        description: "Should be skipped",
+        state: "In Progress",
+        url: "https://example.org/issues/S-SIM",
+        labels: []
+      }
+
+      before = MapSet.new(File.ls!(workspace_root))
+      assert :ok = AgentRunner.run(issue)
+      # Simulate mode must not create a workspace directory
+      assert MapSet.new(File.ls!(workspace_root)) == before
+    after
+      File.rm_rf(workspace_root)
+    end
+  end
 end
