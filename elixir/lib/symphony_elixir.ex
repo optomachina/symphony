@@ -22,6 +22,7 @@ defmodule SymphonyElixir.Application do
   @impl true
   def start(_type, _args) do
     :ok = SymphonyElixir.LogFile.configure()
+    SymphonyElixir.SessionHealth.warn_if_stale()
 
     children = [
       {Phoenix.PubSub, name: SymphonyElixir.PubSub},

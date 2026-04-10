@@ -319,6 +319,43 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert {:error, :issue_update_failed} = Adapter.update_issue_state("issue-1", "Odd")
   end
 
+  test "health endpoint returns xometry_session_age_days" do
+    original_env = System.get_env("XOMETRY_STORAGE_STATE_PATH")
+    on_exit(fn -> SymphonyElixir.TestSupport.restore_env("XOMETRY_STORAGE_STATE_PATH", original_env) end)
+
+    orchestrator_name = Module.concat(__MODULE__, :HealthOrchestrator)
+
+    {:ok, _pid} =
+      StaticOrchestrator.start_link(
+        name: orchestrator_name,
+        snapshot: static_snapshot()
+      )
+
+    start_test_endpoint(orchestrator: orchestrator_name, snapshot_timeout_ms: 50)
+
+    System.delete_env("XOMETRY_STORAGE_STATE_PATH")
+    conn = get(build_conn(), "/health")
+    payload = json_response(conn, 200)
+    assert payload["status"] == "ok"
+    assert Map.fetch!(payload, "xometry_session_age_days") == nil
+
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "xometry-health-test-#{System.unique_integer([:positive])}.json"
+      )
+
+    File.write!(path, "{}")
+    on_exit(fn -> File.rm(path) end)
+
+    System.put_env("XOMETRY_STORAGE_STATE_PATH", path)
+    conn = get(build_conn(), "/health")
+    payload = json_response(conn, 200)
+    assert payload["status"] == "ok"
+    assert is_number(payload["xometry_session_age_days"])
+    assert payload["xometry_session_age_days"] >= 0
+  end
+
   test "phoenix observability api preserves state, issue, and refresh responses" do
     snapshot = static_snapshot()
     orchestrator_name = Module.concat(__MODULE__, :ObservabilityApiOrchestrator)

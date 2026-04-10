@@ -6,7 +6,18 @@ defmodule SymphonyElixirWeb.ObservabilityApiController do
   use Phoenix.Controller, formats: [:json]
 
   alias Plug.Conn
+  alias SymphonyElixir.SessionHealth
   alias SymphonyElixirWeb.{Endpoint, Presenter}
+
+  @spec health(Conn.t(), map()) :: Conn.t()
+  def health(conn, _params) do
+    {_xometry_path, xometry_age_days} = SessionHealth.xometry_session()
+
+    json(conn, %{
+      status: "ok",
+      xometry_session_age_days: xometry_age_days
+    })
+  end
 
   @spec state(Conn.t(), map()) :: Conn.t()
   def state(conn, _params) do
